@@ -47,7 +47,7 @@ OPTIONS
   -as, --audio-source=STRING        Overwrite the default audio source.
   -m,  --microphone                 Enable microphone recording.
   -ms, --microphone-source=STRING   Overwrite the default microphone source.
-  -y,  --notify                     Send notification on error or success.
+  -y,  --notify                     Send notification on countdown, error and success.
        --stop                       Finish any running giph recordings.
 
 SLOP OPTIONS
@@ -88,7 +88,7 @@ function log_warning() {
 }
 
 function log_success() {
-  notify "$1" "normal"
+  notify "$1" "normal" 3000
   log "\033[0;32mSUCCESS:\033[0m $1" 0 "${2:-true}"
 }
 
@@ -96,9 +96,10 @@ function log_info() {
   log "\033[0;36mINFO:\033[0m $1" 0 "${2:-true}"
 }
 
+# send a notification - (message:string, priority:string, duration:int)
 function notify() {
   [ "$NOTIFY" = 1 ] && {
-    notify=(notify-send -t 3000)
+    notify=(notify-send -t $3)
     notify+=(-u "$2")
     notify+=("giph" "$1")
     "${notify[@]}"
@@ -373,7 +374,7 @@ function record() {
       ;;
   esac
 
-  [ -n "$DELAY" ] && [ "$DELAY" -gt 0 ] && countdown_cli "$DELAY" "recording starts in"
+  [ -n "$DELAY" ] && [ "$DELAY" -gt 0 ] && countdown "$DELAY" "recording starts in"
 
   ffmpeg_command="${ffmpeg[*]}"
   log "ffmpeg command: '$ffmpeg_command'" 2 true
@@ -384,7 +385,7 @@ function record() {
   log "started recording video with ffmpeg" 1 true
 
   if [ -n "$TIMER" ] && [ "$TIMER" -gt 0 ]; then
-    countdown_cli "$TIMER" "recording stops in"
+    countdown "$TIMER" "recording stops in"
   else
     stop_recording_handler_cli
   fi
@@ -395,11 +396,15 @@ function record() {
   log "completed ffmpeg video recording" 1 true
 }
 
-function countdown_cli() {
+function countdown() {
   seconds="$1"
+  msg="$2"
+
   while [ "$seconds" -ge 0 ]; do
-    log "\r\033[K\033[0;36m$2:\033[0m $seconds" 0 false false true
+    log "\r\033[K\033[0;36m$msg:\033[0m $seconds" 0 false false true
+
     if [ "$seconds" -gt 0 ]; then
+      [ -n "$NOTIFY" ] && [ "$seconds" -le 5 ] && notify "$msg $seconds" "normal" 1000
       sleep 1
     else
       log "\r\033[K" 0 false false true
